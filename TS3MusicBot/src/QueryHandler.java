@@ -1,3 +1,4 @@
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.logging.Level;
@@ -5,6 +6,7 @@ import java.util.logging.Level;
 import com.github.theholywaffle.teamspeak3.TS3Api;
 import com.github.theholywaffle.teamspeak3.TS3Config;
 import com.github.theholywaffle.teamspeak3.TS3Query;
+import com.github.theholywaffle.teamspeak3.api.ClientProperty;
 import com.github.theholywaffle.teamspeak3.api.TextMessageTargetMode;
 import com.github.theholywaffle.teamspeak3.api.event.ChannelCreateEvent;
 import com.github.theholywaffle.teamspeak3.api.event.ChannelDeletedEvent;
@@ -16,6 +18,8 @@ import com.github.theholywaffle.teamspeak3.api.event.ClientJoinEvent;
 import com.github.theholywaffle.teamspeak3.api.event.ClientLeaveEvent;
 import com.github.theholywaffle.teamspeak3.api.event.ClientMovedEvent;
 import com.github.theholywaffle.teamspeak3.api.event.ServerEditedEvent;
+import com.github.theholywaffle.teamspeak3.api.event.TS3Event;
+import com.github.theholywaffle.teamspeak3.api.event.TS3EventType;
 import com.github.theholywaffle.teamspeak3.api.event.TS3Listener;
 import com.github.theholywaffle.teamspeak3.api.event.TextMessageEvent;
 
@@ -35,11 +39,14 @@ public class QueryHandler implements TS3Listener {
 	private Queue<String> playlist;
 	private boolean request_pause;
 	private boolean request_skip;
+	private boolean kill_me;
+	
+	private HashMap<ClientProperty, String> clientProperties;
 	
 	public QueryHandler(String hostname, String serveradmin, String password, String clientname) {
 		config = new TS3Config();
 			config.setHost(hostname);
-			config.setDebugLevel(Level.ALL);
+			config.setDebugLevel(Level.OFF);
 			config.setLoginCredentials(serveradmin, password);
 			
 		query = new TS3Query(config);
@@ -49,10 +56,21 @@ public class QueryHandler implements TS3Listener {
 			api.selectVirtualServerById(1);
 			api.setNickname("MCBot");
 			api.addTS3Listeners(this);
-		
+			/*Register events we're interested in*/
+			api.registerEvent(TS3EventType.CHANNEL, 1);
+			api.registerEvent(TS3EventType.TEXT_CHANNEL);
+			
+		/*Identify the clientId for channel moves*/
 		clientId = api.getClientByName(clientname).get(0).getId();
 		
 		playlist = new LinkedList<String>();
+		
+		clientProperties = new HashMap<ClientProperty, String>();
+	}
+	
+	public void UpdatePlayingDescription(String s) {
+		clientProperties.put(ClientProperty.CLIENT_DESCRIPTION, s);
+		api.editClient(clientId, clientProperties);
 	}
 	
 	public boolean IsPauseRequested() {
@@ -71,68 +89,35 @@ public class QueryHandler implements TS3Listener {
 		return false;
 	}
 	
+	public boolean KillMe() {
+		return kill_me;
+	}
+	
 	public String NextPlaylistItem() {
 		return playlist.poll();
 	}
-
-	@Override
-	public void onChannelCreate(ChannelCreateEvent e) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onChannelDeleted(ChannelDeletedEvent e) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onChannelDescriptionChanged(ChannelDescriptionEditedEvent e) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onChannelEdit(ChannelEditedEvent e) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onChannelMoved(ChannelMovedEvent e) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onChannelPasswordChanged(ChannelPasswordChangedEvent e) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onClientJoin(ClientJoinEvent e) {
-		// TODO Auto-generated method stub
-		
-	}
-
+	
 	@Override
 	public void onClientLeave(ClientLeaveEvent e) {
-		// TODO Auto-generated method stub
-		
+		/*If the client leaves, then we really want to be 
+		 * bailing out of this program.
+		 */
+		if (e.getClientId() == clientId) {
+			kill_me = true;
+		}
 	}
 
 	@Override
 	public void onClientMoved(ClientMovedEvent e) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
-	public void onServerEdit(ServerEditedEvent e) {
-		// TODO Auto-generated method stub
-		
+		/*Listen for the client changing channel, then
+		 * follow it and reregister for events
+		 */
+		if (e.getClientId() == clientId) {
+			api.moveClient(e.getClientTargetId());
+			api.unregisterAllEvents();
+			api.registerEvent(TS3EventType.CHANNEL, e.getClientTargetId());
+			api.registerEvent(TS3EventType.TEXT_CHANNEL);
+		}
 	}
 
 	@Override
@@ -154,4 +139,22 @@ public class QueryHandler implements TS3Listener {
 			}
 		}
 	}
+	
+	/*These don't get used (yet)*/
+	@Override
+	public void onChannelCreate(ChannelCreateEvent e) {}
+	@Override
+	public void onChannelDeleted(ChannelDeletedEvent e) {}
+	@Override
+	public void onChannelDescriptionChanged(ChannelDescriptionEditedEvent e) {}
+	@Override
+	public void onChannelEdit(ChannelEditedEvent e) {}
+	@Override
+	public void onChannelMoved(ChannelMovedEvent e) {}
+	@Override
+	public void onChannelPasswordChanged(ChannelPasswordChangedEvent e) {}
+	@Override
+	public void onClientJoin(ClientJoinEvent e) {}
+	@Override
+	public void onServerEdit(ServerEditedEvent e) {}
 }

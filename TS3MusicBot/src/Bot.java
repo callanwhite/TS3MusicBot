@@ -8,45 +8,46 @@ public class Bot {
 	private Process PROCESS_TS_CLIENT;
 	private MPlayer mplayer;
 	private QueryHandler qh;
+	private YoutubeHandler yh;
 	
 	public Bot(String hostname, String sq_username, String sq_password, String clientname, String password) throws IOException, InterruptedException {
 		PROCESS_TS_CLIENT = new ProcessBuilder("sh","-c","xvfb-run -n 0 -f xauthfile -s \"-screen 0 640x480x16\" ./ts3client_runscript.sh \"ts3server://"+hostname+"?password="+password+"&nickname="+clientname+"\"").directory(new File("client")).start();
 		Thread.sleep(3000); //wait for the client connect
 		mplayer = new MPlayer();
 		qh = new QueryHandler(hostname, sq_username, sq_password, clientname);
+		yh = new YoutubeHandler();
 	}
 	
 	public void Update() {
-		final String next = qh.NextPlaylistItem();
-		if (next != null) {
-			Runnable r = new Runnable() {
-				public void run() {
-					try {
-						Process p = new ProcessBuilder("sh","-c","getsong.sh "+next).directory(new File("yt")).start();
-						p.waitFor();
-						if (p.exitValue() != 0) {
-							throw new IOException();
-						}
-						mplayer.QueueFile(next+".m4a");
-					} catch (IOException | InterruptedException e) {
-						System.out.println("Error retrieving: "+next);
-					}
-				}
-			};
-			Thread t = new Thread(r);
-			t.start();
-		}
+
+		String s = qh.NextPlaylistItem();
+		if (s != null) { yh.AddRequest(s);}
+		yh.Update();
+		
+		s = yh.GetReadyRequest();
+		if (s!=null) { mplayer.QueueFile(s);}
+		
 		if (qh.IsPauseRequested()) { mplayer.Pause();}
 		if (qh.IsSkipRequested()) { mplayer.Skip();}
+		if (qh.KillMe()) { 
+			System.out.println("The bot has left the server. Killing program");
+			System.exit(1);
+		}
+		//qh.UpdatePlayingDescription("Now Playing: "+mplayer.GetFilename()+ "("+mplayer.GetPercentPos()+"%");
+		
 	}
 	
+	/*Forcibly kill the ts client after retrieving
+	 * the pid via a reflective call
+	 */
 	public void KillProcesses() {
 		int pid = GetPid(PROCESS_TS_CLIENT);
 		System.out.println("TS_CLIENT_PID: "+pid);
 		try {
 			Process p = new ProcessBuilder("bash","-c","kill -9 "+pid).start();
+			p.waitFor();
 			System.out.println("Killed Processes");
-		} catch (IOException e) {
+		} catch (IOException | InterruptedException e) {
 			System.out.println("Error killing process with PID: "+pid);
 		}
 	}
@@ -80,6 +81,7 @@ public class Bot {
 			
 			while (true) {
 				b.Update();
+				Thread.sleep(1000);
 			}
 			
 		} catch (InterruptedException | IOException e) {
