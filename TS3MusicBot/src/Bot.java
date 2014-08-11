@@ -2,7 +2,9 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 
-
+/*Main class, responsible for interaction
+ * of YT/QH/MP classes
+ */
 public class Bot {
 	
 	private Process PROCESS_TS_CLIENT;
