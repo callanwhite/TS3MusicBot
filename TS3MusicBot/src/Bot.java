@@ -10,23 +10,19 @@ public class Bot {
 	private Process PROCESS_TS_CLIENT;
 	private MPlayer mplayer;
 	private QueryHandler qh;
-	private YoutubeHandler yh;
 	
 	public Bot(String hostname, String sq_username, String sq_password, String clientname, String password) throws IOException, InterruptedException {
 		PROCESS_TS_CLIENT = new ProcessBuilder("sh","-c","xvfb-run -n 0 -f xauthfile -s \"-screen 0 640x480x16\" ./ts3client_runscript.sh \"ts3server://"+hostname+"?password="+password+"&nickname="+clientname+"\"").directory(new File("client")).start();
-		Thread.sleep(3000); //wait for the client connect
+		Thread.sleep(3000); //wait for the client to connect
 		mplayer = new MPlayer();
 		qh = new QueryHandler(hostname, sq_username, sq_password, clientname);
-		yh = new YoutubeHandler();
 	}
 	
 	public void Update() {
-
-		String s = qh.NextPlaylistItem();
-		if (s != null) { yh.AddRequest(s);}
-		yh.Update();
+		qh.Update();
 		
-		s = yh.GetReadyRequest();
+		String s = qh.NextPlaylistItem();
+	
 		if (s!=null) { mplayer.QueueFile(s);}
 		
 		if (qh.IsPauseRequested()) { mplayer.Pause();}

@@ -24,6 +24,7 @@ public class MPlayer {
 	private Process p;
 	private PrintStream ps;
 	private BufferedReader mout;
+	private boolean EOF;
 
 
 	public MPlayer() throws IOException {
@@ -115,6 +116,10 @@ public class MPlayer {
 				PrintStream ps = new PrintStream(out);
 				String line;
 				while ((line = reader.readLine()) != null) {
+					if (line.contains("EOF")) {
+						EOF = true;
+						System.out.println("EOF DETECTED:"+line);
+					}
 					ps.println(line);
 				}
 			} catch (IOException e) {
